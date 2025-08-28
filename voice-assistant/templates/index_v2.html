@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Assistant with History</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #startButton {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        #status {
+            margin: 10px 0;
+            font-size: 16px;
+            color: #666;
+        }
+        #conversation {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            min-height: 300px;
+            background-color: #f9f9f9;
+        }
+        .user-message {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .assistant-message {
+            color: #16a085;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Voice Assistant</h1>
+    <button id="startButton">Start Listening</button>
+    <div id="status">Press the button to start</div>
+    
+    <div id="conversation">
+        <!-- Conversation history will appear here -->
+    </div>
+
+    <script>
+        const startButton = document.getElementById('startButton');
+        const statusDiv = document.getElementById('status');
+        const conversationDiv = document.getElementById('conversation');
+        let audioContext;
+        let analyser;
+        let microphone;
+        let silenceStartTime;        
+        let mediaRecorder;
+        let audioChunks = [];
+        let silenceTimer;
+
+        const SILENCE_THRESHOLD = -50; // dB level considered "silence"
+        const SILENCE_TIMEOUT = 2000; // 2 seconds of silence to stop
+
+        startButton.addEventListener('click', startRecording);
+
+        async function startRecording() {
+            statusDiv.textContent = "Listening... Speak now";
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+                
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                silenceStartTime = null;
+                
+                mediaRecorder.start();
+                startButton.disabled = true;
+                
+                // Check for silence every 100ms
+                const checkSilence = () => {
+                    const dataArray = new Uint8Array(analyser.fftSize);
+                    analyser.getByteTimeDomainData(dataArray);
+                    
+                    let isSilent = true;
+                    for (const amplitude of dataArray) {
+                        // Convert to dB
+                        const dB = 20 * Math.log10(amplitude / 255);
+                        if (dB > SILENCE_THRESHOLD) {
+                            isSilent = false;
+                            break;
+                        }
+                    }
+                    
+                    if (isSilent) {
+                        if (!silenceStartTime) {
+                            silenceStartTime = Date.now();
+                        } else if (Date.now() - silenceStartTime > SILENCE_TIMEOUT) {
+                            stopRecording();
+                            return;
+                        }
+                    } else {
+                        silenceStartTime = null;
+                    }
+                    
+                    if (mediaRecorder.state === 'recording') {
+                        requestAnimationFrame(checkSilence);
+                    }
+                };
+                
+                checkSilence();
+                
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+                
+                // Maximum recording time
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        stopRecording();
+                    }
+                }, 10000);
+                
+            } catch (err) {
+                statusDiv.textContent = "Error: " + err.message;
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                
+                // Disconnect audio nodes
+                if (microphone) microphone.disconnect();
+                if (analyser) analyser.disconnect();
+                if (audioContext) audioContext.close();
+                
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    sendAudioToServer(audioBlob);
+                    
+                    // Stop all tracks
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                };
+            }
+        }
+        
+/*        function startRecording() {
+            statusDiv.textContent = "Listening... Speak now";
+            
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.start();
+                    startButton.disabled = true;
+                    
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                        // Reset silence timer each time we get new audio data
+                        clearTimeout(silenceTimer);
+                        silenceTimer = setTimeout(stopRecording, SILENCE_TIMEOUT);
+                    };
+                    
+                    // Also stop after 10 seconds maximum
+                    setTimeout(stopRecording, 10000);
+                })
+                .catch(err => {
+                    statusDiv.textContent = "Error: " + err.message;
+                });
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                clearTimeout(silenceTimer);
+                
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    sendAudioToServer(audioBlob);
+                    
+                    // Stop all tracks
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                };
+            }
+        }
+*/
+        function sendAudioToServer(audioBlob) {
+            statusDiv.textContent = "Processing...";
+            
+            const formData = new FormData();
+            formData.append('audio_data', audioBlob, 'recording.webm');
+            
+            fetch('/process_audio', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateConversation(data.conversation);
+                    statusDiv.textContent = "Ready";
+                } else {
+                    statusDiv.textContent = "Error: " + data.message;
+                }
+                startButton.disabled = false;
+            })
+            .catch(error => {
+                statusDiv.textContent = "Error: " + error;
+                startButton.disabled = false;
+            });
+        }
+
+        function updateConversation(conversation) {
+            conversationDiv.innerHTML = '';
+            conversation.forEach(entry => {
+                const messageDiv = document.createElement('div');
+                if (entry.includes('USER:')) {
+                    messageDiv.className = 'user-message';
+                } else {
+                    messageDiv.className = 'assistant-message';
+                }
+                messageDiv.textContent = entry;
+                conversationDiv.appendChild(messageDiv);
+            });
+            // Scroll to bottom
+            conversationDiv.scrollTop = conversationDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>

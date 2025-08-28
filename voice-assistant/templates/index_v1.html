@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Voice Assistant</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        #startButton {
+            padding: 15px 30px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 16px;
+            color: #666;
+        }
+        #response {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Voice Assistant</h1>
+    <button id="startButton">Start Listening</button>
+    <div id="status">Press the button to start</div>
+    <div id="response"></div>
+
+    <script>
+        const startButton = document.getElementById('startButton');
+        const statusDiv = document.getElementById('status');
+        const responseDiv = document.getElementById('response');
+        
+        let mediaRecorder;
+        let audioChunks = [];
+        let silenceTimer;
+        const SILENCE_TIMEOUT = 1500; // 1.5 seconds of silence
+
+        startButton.addEventListener('click', startRecording);
+
+        function startRecording() {
+            statusDiv.textContent = "Listening... Speak now";
+            responseDiv.textContent = "";
+            
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.start();
+                    startButton.disabled = true;
+                    
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                        // Reset silence timer each time we get new audio data
+                        clearTimeout(silenceTimer);
+                        silenceTimer = setTimeout(stopRecording, SILENCE_TIMEOUT);
+                    };
+                    
+                    // Also stop after 10 seconds maximum
+                    setTimeout(stopRecording, 10000);
+                })
+                .catch(err => {
+                    statusDiv.textContent = "Error: " + err.message;
+                });
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                clearTimeout(silenceTimer);
+                
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    sendAudioToServer(audioBlob);
+                    
+                    // Stop all tracks
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                };
+            }
+        }
+
+        function sendAudioToServer(audioBlob) {
+            statusDiv.textContent = "Processing...";
+            
+            const formData = new FormData();
+            formData.append('audio_data', audioBlob, 'recording.wav');
+            
+            fetch('/process_audio', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    responseDiv.textContent = data.response;
+                    statusDiv.textContent = "Done";
+                } else {
+                    statusDiv.textContent = "Error: " + data.message;
+                }
+                startButton.disabled = false;
+            })
+            .catch(error => {
+                statusDiv.textContent = "Error: " + error;
+                startButton.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
