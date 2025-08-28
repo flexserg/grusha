@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voice Assistant with Sound Meter</title>
+    <link rel="stylesheet" href="{{ url_for('static',filename='styles/styles.css') }}">
+</head>
+<body>
+    <h1>Voice Assistant</h1>
+    <button id="startButton">Start Listening</button>
+    <div id="soundLevelContainer">
+        <div id="soundLevelBar"></div>
+    </div>
+    <div id="soundLevelText">Microphone level: 0 dB</div>
+    <div id="status">Press the button to start</div>
+    
+    <div id="conversation">
+        <!-- Conversation history will appear here -->
+    </div>
+    <script type="text/javascript" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
