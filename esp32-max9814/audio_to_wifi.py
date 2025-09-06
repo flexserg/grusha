@@ -2,7 +2,7 @@ import socket
 import wave
 import time
 
-ESP32_IP = "192.168.31.118"  # Change to your ESP32 IP
+ESP32_IP = "192.168.31.117"  # Change to your ESP32 IP
 UDP_PORT = 12345
 CHUNK_SIZE = 512
 
