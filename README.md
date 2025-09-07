@@ -180,3 +180,6 @@ int led_state = LOW;
 ```
 digitalWrite(LED_PIN, led_state);
 ```
+## Что умеет
+### Передача аудио с микрофона через интернет
+arduino/voice_over_wifi/voice_over_wifi.ino
