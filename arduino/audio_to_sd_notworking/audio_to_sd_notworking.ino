@@ -3,8 +3,7 @@
 #include <SD.h>
 #include <FS.h>
 #include <driver/i2s.h>
-
-#define BUTTON_PIN 0
+#include <ezButton.h>
 
 //====CONFIG INMP441====
 #define I2S_WS 25
@@ -37,12 +36,20 @@
 #define SD_SCK   18
 #define SD_MISO   19
 
-// --- GLOBALS --- 
-bool isRecording = false;
-//bool lastButtonState = HIGH;
-uint32_t lastDebounceTime = 0;
-const uint32_t debounceDelay = 50;
+//button_config
+#define BUTTON_PIN 0
+#define EXT_BUTTON_PIN 26
+#define DEBOUNCE_TIME  100 // the debounce time in millisecond, increase this time if it still chatters
+ezButton button_int(BUTTON_PIN); // create ezButton object that attach to pin GPIO0
+ezButton button_ext(EXT_BUTTON_PIN); // create ezButton object that attach to pin GPIO26
 
+//led_config
+#define LED_PIN     22 // ESP32 pin GPIO22, which connected to led
+int led_state = LOW;   // the current state of LED
+
+bool isRecording = false;
+
+// --- GLOBALS ---
 File audioFile;
 String filename = "";
 uint32_t samplesWritten = 0;
@@ -229,7 +236,9 @@ void playLastRecording() {
 void setup() {
   Serial.begin(115200);
 
-  pinMode(BUTTON_PIN, INPUT_PULLUP); //internal button setup
+  pinMode(LED_PIN, OUTPUT);   // set ESP32 pin to output mode
+  button_int.setDebounceTime(DEBOUNCE_TIME); // set debounce time to 50 milliseconds
+  button_ext.setDebounceTime(DEBOUNCE_TIME); // set debounce time to 50 milliseconds
 
   Serial.print("Initializing SD card...");
   SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
@@ -268,6 +277,48 @@ void setup() {
 } 
 
 void loop() {
+//  button_int.loop(); // MUST call the loop() function first
+  button_ext.loop(); // MUST call the loop() function first
+/*
+  if (button_int.isPressed())
+    Serial.println("The button INT is pressed");
+
+  if (button_int.isReleased())
+    Serial.println("The button INT is released");
+*/
+  if (button_ext.isPressed()) {
+    Serial.println("The button EXT is pressed");
+    // toggle state of LED
+    led_state = !led_state;
+
+    // control LED arccoding to the toggleed sate
+    digitalWrite(LED_PIN, led_state);
+    /*
+    if (!isRecording) {
+      Serial.println("🎙️ Start recording");
+      startRecording();
+      isRecording = true;
+    } else {
+      Serial.println("🛑 Stop recording");
+      stopRecording();
+      isRecording = false;
+      // playLastRecording(); // optional
+    }
+    */
+  }
+    
+  if (button_ext.isReleased())
+    Serial.println("The button EXT is released");
+
+  // Only record audio while recording is active
+  if (isRecording) {
+    recordAudioChunk();
+  }
+}
+
+/*
+
+void loop() {
   static int lastButtonState = HIGH;  // previous stable state
   int buttonState = digitalRead(BUTTON_PIN);
   unsigned long now = millis();
@@ -298,7 +349,7 @@ void loop() {
     recordAudioChunk();
   }
 }
-
+*/
 
 /*
 void loop() {
