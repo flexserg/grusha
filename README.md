@@ -182,4 +182,46 @@ digitalWrite(LED_PIN, led_state);
 ```
 ## Что умеет
 ### Передача аудио с микрофона через интернет
-[a relative link](arduino/voice_over_wifi/voice_over_wifi.ino)
+[voice_over_wifi.ino](arduino/voice_over_wifi/voice_over_wifi.ino)
+Необходимо указать следующие параметры:
+```
+//====WIFI conifg====
+const char* ssid = "XXXX";
+const char* password = "XXXX";
+const char* receiverIP = "XXXX";  // Replace with listening server IP
+const uint16_t receiverPort = XXXX; // Replace with listening server UDP port
+```
+Пример кода, сохраняющего аудио в WAV файл, на принимающей стороне: [inmp441_o_wifi.py](esp32-max9814/inmp441_o_wifi.py)
+Необходимо указать следующие параметры:
+```
+OUTPUT_FILE = "wifi_recording_inmp441.wav"
+PORT = 12345            # Should match ESP32 sender port
+```
+### Проигрывание аудио файла WAV, полученного через интернет, из динамика
+[play_audio_over_wifi.ino](arduino/voice_over_wifi/play_audio_over_wifi/play_audio_over_wifi.ino)
+Необходимо указать следующие параметры:
+```
+const char* ssid = "XXXX";
+const char* password = "XXXX";
+WiFiUDP udp;
+const int localPort = XXXX; // Replace with UDP port to listen on
+```
+Пример кода на передающей стороне: [audio_to_wifi.py](esp32-max9814/audio_to_wifi.py)
+Необходимо указать следующие параметры:
+```
+ESP32_IP = "192.168.31.117"  # Change to your ESP32 IP
+UDP_PORT = XXXX
+...
+with wave.open("wifi_recording_inmp441.wav", "rb") as wf:
+```
+### Проигрывание аудио из файла на SD карте из динамика
+[play_from_sd.ino](esp32-max9814/play_from_sd/play_from_sd.ino)
+Необходимо указать следующие параметры:
+```
+#define WAV_FILENAME    "/wifi_recording_inmp441.wav"
+```
+### Запись аудио с микрофона и сохранение в файл на SD карте
+[audio_to_sd_notworking.ino](arduino/audio_to_sd_notworking/audio_to_sd_notworking.ino)
+> **Внимание:** Пока работает криво, т.к. не получается нормально управлять началом и окончанием записи кнопками. 
+
+Тут же предпринята попытка сразу проиграть записанное аудио.
